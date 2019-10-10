@@ -85,6 +85,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DashCountModModule.cs" />
+    <Compile Include="DashCountModSettings.cs" />
+    <Compile Include="DashesCounterInChapterPanel.cs" />
     <Compile Include="OuiJournalDashes.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
