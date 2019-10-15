@@ -39,6 +39,131 @@ namespace Celeste.Mod.DashCountMod {
             }
         }
 
+        // ================ Dash Count in Progress Page ================
+
+        bool fewestDashesInProgressPageEnabled = false;
+
+        public void SetFewestDashesInProgressPageEnabled(bool enabled) {
+            if (enabled && !fewestDashesInProgressPageEnabled) {
+                Logger.Log("DashCountMod", "Hooking journal progress page rendering methods");
+
+                IL.Celeste.OuiJournalProgress.ctor += ModOuiJournalProgressConstructor;
+            } else if(!enabled && fewestDashesInProgressPageEnabled) {
+                Logger.Log("DashCountMod", "Unhooking journal progress page rendering methods");
+
+                IL.Celeste.OuiJournalProgress.ctor -= ModOuiJournalProgressConstructor;
+            }
+
+            fewestDashesInProgressPageEnabled = enabled;
+        }
+
+        private void ModOuiJournalProgressConstructor(ILContext il) {
+            ILCursor cursor = new ILCursor(il);
+            
+            // patch columns to be narrower (100 => 80, 150 => 120, 20 => 0)
+            while(cursor.TryGotoNext(instr => instr.MatchLdcR4(100f) || instr.MatchLdcR4(150f) || instr.MatchLdcR4(20f))) {
+                float currentValue = (float)cursor.Next.Operand;
+                float newValue = (currentValue == 100f ? 80f : (currentValue == 150f ? 120f : 0f));
+                Logger.Log("DashCountMod", $"Modding column size from {currentValue} to {newValue} at {cursor.Index} in CIL code for OuiJournalProgress constructor");
+                cursor.Next.Operand = newValue;
+            }
+
+            cursor.Index = 0;
+            // add a column header for dash counts, just before the "time" column
+            if(cursor.TryGotoNext(instr => instr.MatchLdstr("time"))) {
+                Logger.Log("DashCountMod", $"Adding column header for fewest dashes at {cursor.Index} in CIL code for OuiJournalProgress constructor");
+
+                // At this point, we loaded this.table into the stack. Just use it.
+                cursor.EmitDelegate<Action<OuiJournalPage.Table>>(AddColumnHeaderForFewestDashes);
+
+                // Then inject this.table back, so that the game can add the time column.
+                cursor.Emit(OpCodes.Ldarg_0);
+                cursor.Emit(OpCodes.Ldfld, typeof(OuiJournalProgress).GetField("table", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance));
+            }
+            
+            // and actually add cells on each line, once again just before the "total time" column
+            if(cursor.TryGotoNext(instr => instr.MatchCallvirt<AreaStats>("get_TotalTimePlayed"))) {
+                // at this point, we loaded AreaStats into the stack. (the instruction is ldloc.1 on XNA, ldloc.3 on FNA)
+                OpCode loadOpCodeForAreaStats = cursor.Prev.OpCode;
+
+                // let's load the row too. we just happen to know it's local variable 8 on XNA and 17 on FNA.
+                if(cursor.TryFindNext(out ILCursor[] nextLocalVariableCursor, instr => instr.OpCode == OpCodes.Ldloc_S
+                    && (((VariableDefinition)instr.Operand).Index == 8 || ((VariableDefinition)instr.Operand).Index == 17))) {
+
+                    Logger.Log("DashCountMod", $"Adding column value for fewest dashes at {cursor.Index} in CIL code for OuiJournalProgress constructor: " +
+                        $"loading area stats with {loadOpCodeForAreaStats} and current row with ldloc.s {nextLocalVariableCursor[0].Next.Operand}");
+
+                    // load row and this into the stack, then call our delegate which will build and add the cell.
+                    cursor.Emit(OpCodes.Ldloc_S, nextLocalVariableCursor[0].Next.Operand);
+                    cursor.Emit(OpCodes.Ldarg_0);
+                    cursor.EmitDelegate<Action<AreaStats, OuiJournalPage.Row, OuiJournalProgress>>(AddColumnValueForFewestDashes);
+
+                    // then, put back AreaStats in the stack for the Time cell to use it.
+                    cursor.Emit(loadOpCodeForAreaStats);
+                }
+            }
+
+            // finally, inject ourselves in the Totals line, just before Time
+            if(cursor.TryGotoNext(instr => instr.MatchLdfld<SaveData>("Time"))) {
+                // step back before loading SaveData.Instance. The instruction before that loads the row in the stack
+                cursor.Index--;
+                object varIndexForRow = cursor.Prev.Operand;
+
+                Logger.Log("DashCountMod", $"Adding column total for fewest dashes at {cursor.Index} in CIL code for OuiJournalProgress constructor: loading row with {varIndexForRow}");
+
+                // at this point, we have row in the stack. Add this, then call our delegate which will build and add the cell.
+                cursor.Emit(OpCodes.Ldarg_0);
+                cursor.EmitDelegate<Action<OuiJournalPage.Row, OuiJournalProgress>>(AddColumnTotalForFewestDashes);
+
+                // Then inject row back, so that the game can add the time column.
+                cursor.Emit(OpCodes.Ldloc_S, varIndexForRow);
+            }
+        }
+
+        private void AddColumnHeaderForFewestDashes(OuiJournalPage.Table table) {
+            table.AddColumn(new OuiJournalPage.IconCell("max480/DashCountMod/dashes", 80f));
+        }
+
+        private void AddColumnValueForFewestDashes(AreaStats areaStats, OuiJournalPage.Row row, OuiJournalProgress self) {
+            // we only show values for SingleRunCompleted sides. so, the total only appears for chapters with only SingleRunCompleted sides
+            bool allSingleRunCompleted = true;
+            int mode = 0;
+            foreach(AreaModeStats modeStats in areaStats.Modes ?? new AreaModeStats[0]) {
+                if (AreaData.Areas[areaStats.ID].HasMode((AreaMode)mode++) && !modeStats.SingleRunCompleted) {
+                    allSingleRunCompleted = false;
+                }
+            }
+
+            if(allSingleRunCompleted) {
+                row.Add(new OuiJournalPage.TextCell(Dialog.Deaths(areaStats.BestTotalDashes), self.TextJustify, 0.5f, self.TextColor));
+            } else {
+                row.Add(new OuiJournalPage.IconCell("dot"));
+            }
+        }
+
+        private void AddColumnTotalForFewestDashes(OuiJournalPage.Row row, OuiJournalProgress self) {
+            // go across all areas that are not interludes, and check if they are all completed in a single run
+            bool allSingleRunCompleted = true;
+            int totalDashes = 0;
+            foreach(AreaStats areaStats in SaveData.Instance.Areas) {
+                if (!AreaData.Areas[areaStats.ID].Interlude) {
+                    int mode = 0;
+                    foreach (AreaModeStats modeStats in areaStats.Modes ?? new AreaModeStats[0]) {
+                        if (AreaData.Areas[areaStats.ID].HasMode((AreaMode)mode++) && !modeStats.SingleRunCompleted) {
+                            allSingleRunCompleted = false;
+                        }
+                    }
+                    if (allSingleRunCompleted) totalDashes += areaStats.BestTotalDashes;
+                }
+            }
+
+            if(allSingleRunCompleted) {
+                row.Add(new OuiJournalPage.TextCell(Dialog.Deaths(totalDashes), self.TextJustify, 0.5f, self.TextColor));
+            } else {
+                row.Add(new OuiJournalPage.IconCell("dot"));
+            }
+        }
+
         // ================ Dash Count in Chapter Panel ================
 
         bool dashCounterInChapterPanelEnabled = false;
