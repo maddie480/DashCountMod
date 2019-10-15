@@ -158,7 +158,7 @@ namespace Celeste.Mod.DashCountMod {
             }
 
             if(allSingleRunCompleted) {
-                row.Add(new OuiJournalPage.TextCell(Dialog.Deaths(totalDashes), self.TextJustify, 0.5f, self.TextColor));
+                row.Add(new OuiJournalPage.TextCell(Dialog.Deaths(totalDashes), self.TextJustify, 0.6f, self.TextColor));
             } else {
                 row.Add(new OuiJournalPage.IconCell("dot"));
             }
