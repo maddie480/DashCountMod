@@ -1,9 +1,9 @@
 ﻿namespace Celeste.Mod.DashCountMod {
+    [SettingInGame(false)]
     class DashCountModSettings : EverestModuleSettings {
         private bool dashCountInChapterPanel = false;
         private bool fewestDashCountOnProgressPage = false;
 
-        [SettingInGame(false)]
         public bool DashCountInChapterPanel {
             get { return dashCountInChapterPanel; }
             set {
@@ -12,7 +12,6 @@
             }
         }
 
-        [SettingInGame(false)]
         public bool FewestDashCountOnProgressPage {
             get { return fewestDashCountOnProgressPage; }
             set {
