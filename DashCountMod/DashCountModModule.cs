@@ -1,14 +1,19 @@
 ﻿using System;
 using System.Collections;
+using System.Linq;
+using System.Reflection;
 using Microsoft.Xna.Framework;
 using Mono.Cecil.Cil;
 using Monocle;
 using MonoMod.Cil;
+using MonoMod.RuntimeDetour;
 
 namespace Celeste.Mod.DashCountMod {
     public class DashCountModModule : EverestModule {
 
         public static DashCountModModule Instance;
+
+        private static FieldInfo speedBerryPBInChapterPanel;
 
         public override Type SettingsType => typeof(DashCountModSettings);
 
@@ -28,12 +33,31 @@ namespace Celeste.Mod.DashCountMod {
             On.Celeste.OuiChapterPanel.ctor -= ModOuiChapterPanelConstructor;
         }
 
+        public override void Initialize() {
+            base.Initialize();
+
+            // is SpeedBerryPBInChapterPanel a thing?
+            EverestModule collabUtils = Everest.Modules.FirstOrDefault(module => module.Metadata.Name == "CollabUtils2");
+            if (collabUtils != null) {
+                speedBerryPBInChapterPanel = collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.SpeedBerryPBInChapterPanel")
+                    .GetField("speedBerryPBDisplay", BindingFlags.NonPublic | BindingFlags.Static);
+
+                Logger.Log("DashCountMod", $"I found the speed berry PB component: {speedBerryPBInChapterPanel.Name} " +
+                    $"(type {speedBerryPBInChapterPanel.DeclaringType} in {speedBerryPBInChapterPanel.DeclaringType.Assembly})");
+
+                if ((_Settings as DashCountModSettings).DashCountInChapterPanel) {
+                    // be sure the collab utils are hooked (they might not have been loaded when the dash count mod was loaded).
+                    hookCollabUtils();
+                }
+            }
+        }
+
         // ================ Journal Page ================
 
         private void OnJournalEnter(OuiJournal journal, Oui from) {
             // add the "dashes" page just after the "deaths" one
-            for(int i = 0; i < journal.Pages.Count; i++) {
-                if(journal.Pages[i].GetType() == typeof(OuiJournalDeaths)) {
+            for (int i = 0; i < journal.Pages.Count; i++) {
+                if (journal.Pages[i].GetType() == typeof(OuiJournalDeaths)) {
                     journal.Pages.Insert(i + 1, new OuiJournalDashes(journal));
                 }
             }
@@ -48,7 +72,7 @@ namespace Celeste.Mod.DashCountMod {
                 Logger.Log("DashCountMod", "Hooking journal progress page rendering methods");
 
                 IL.Celeste.OuiJournalProgress.ctor += ModOuiJournalProgressConstructor;
-            } else if(!enabled && fewestDashesInProgressPageEnabled) {
+            } else if (!enabled && fewestDashesInProgressPageEnabled) {
                 Logger.Log("DashCountMod", "Unhooking journal progress page rendering methods");
 
                 IL.Celeste.OuiJournalProgress.ctor -= ModOuiJournalProgressConstructor;
@@ -59,10 +83,10 @@ namespace Celeste.Mod.DashCountMod {
 
         private void ModOuiJournalProgressConstructor(ILContext il) {
             ILCursor cursor = new ILCursor(il);
-            
+
             // patch columns to be narrower (100 => 80, 150 => 120, 20 => 0)
-            while(cursor.TryGotoNext(instr => instr.MatchLdcR4(100f) || instr.MatchLdcR4(150f) || instr.MatchLdcR4(20f))) {
-                float currentValue = (float)cursor.Next.Operand;
+            while (cursor.TryGotoNext(instr => instr.MatchLdcR4(100f) || instr.MatchLdcR4(150f) || instr.MatchLdcR4(20f))) {
+                float currentValue = (float) cursor.Next.Operand;
                 float newValue = (currentValue == 100f ? 80f : (currentValue == 150f ? 120f : 0f));
                 Logger.Log("DashCountMod", $"Modding column size from {currentValue} to {newValue} at {cursor.Index} in CIL code for OuiJournalProgress constructor");
                 cursor.Next.Operand = newValue;
@@ -70,7 +94,7 @@ namespace Celeste.Mod.DashCountMod {
 
             cursor.Index = 0;
             // add a column header for dash counts, just before the "time" column
-            if(cursor.TryGotoNext(instr => instr.MatchLdstr("time"))) {
+            if (cursor.TryGotoNext(instr => instr.MatchLdstr("time"))) {
                 Logger.Log("DashCountMod", $"Adding column header for fewest dashes at {cursor.Index} in CIL code for OuiJournalProgress constructor");
 
                 // At this point, we loaded this.table into the stack. Just use it.
@@ -78,17 +102,17 @@ namespace Celeste.Mod.DashCountMod {
 
                 // Then inject this.table back, so that the game can add the time column.
                 cursor.Emit(OpCodes.Ldarg_0);
-                cursor.Emit(OpCodes.Ldfld, typeof(OuiJournalProgress).GetField("table", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance));
+                cursor.Emit(OpCodes.Ldfld, typeof(OuiJournalProgress).GetField("table", BindingFlags.NonPublic | BindingFlags.Instance));
             }
-            
+
             // and actually add cells on each line, once again just before the "total time" column
-            if(cursor.TryGotoNext(instr => instr.MatchCallvirt<AreaStats>("get_TotalTimePlayed"))) {
+            if (cursor.TryGotoNext(instr => instr.MatchCallvirt<AreaStats>("get_TotalTimePlayed"))) {
                 // at this point, we loaded AreaStats into the stack. (the instruction is ldloc.1 on XNA, ldloc.3 on FNA)
                 OpCode loadOpCodeForAreaStats = cursor.Prev.OpCode;
 
                 // let's load the row too. we just happen to know it's local variable 8 on XNA and 17 on FNA.
-                if(cursor.TryFindNext(out ILCursor[] nextLocalVariableCursor, instr => instr.OpCode == OpCodes.Ldloc_S
-                    && (((VariableDefinition)instr.Operand).Index == 8 || ((VariableDefinition)instr.Operand).Index == 17))) {
+                if (cursor.TryFindNext(out ILCursor[] nextLocalVariableCursor, instr => instr.OpCode == OpCodes.Ldloc_S
+                     && (((VariableDefinition) instr.Operand).Index == 8 || ((VariableDefinition) instr.Operand).Index == 17))) {
 
                     Logger.Log("DashCountMod", $"Adding column value for fewest dashes at {cursor.Index} in CIL code for OuiJournalProgress constructor: " +
                         $"loading area stats with {loadOpCodeForAreaStats} and current row with ldloc.s {nextLocalVariableCursor[0].Next.Operand}");
@@ -104,7 +128,7 @@ namespace Celeste.Mod.DashCountMod {
             }
 
             // finally, inject ourselves in the Totals line, just before Time
-            if(cursor.TryGotoNext(instr => instr.MatchLdfld<SaveData>("Time"))) {
+            if (cursor.TryGotoNext(instr => instr.MatchLdfld<SaveData>("Time"))) {
                 // step back before loading SaveData.Instance. The instruction before that loads the row in the stack
                 cursor.Index--;
                 object varIndexForRow = cursor.Prev.Operand;
@@ -128,13 +152,13 @@ namespace Celeste.Mod.DashCountMod {
             // we only show values for SingleRunCompleted sides. so, the total only appears for chapters with only SingleRunCompleted sides
             bool allSingleRunCompleted = true;
             int mode = 0;
-            foreach(AreaModeStats modeStats in areaStats.Modes ?? new AreaModeStats[0]) {
-                if (AreaData.Areas[areaStats.ID].HasMode((AreaMode)mode++) && !modeStats.SingleRunCompleted) {
+            foreach (AreaModeStats modeStats in areaStats.Modes ?? new AreaModeStats[0]) {
+                if (AreaData.Areas[areaStats.ID].HasMode((AreaMode) mode++) && !modeStats.SingleRunCompleted) {
                     allSingleRunCompleted = false;
                 }
             }
 
-            if(allSingleRunCompleted) {
+            if (allSingleRunCompleted) {
                 row.Add(new OuiJournalPage.TextCell(Dialog.Deaths(areaStats.BestTotalDashes), self.TextJustify, 0.5f, self.TextColor));
             } else {
                 row.Add(new OuiJournalPage.IconCell("dot"));
@@ -145,11 +169,11 @@ namespace Celeste.Mod.DashCountMod {
             // go across all areas that are not interludes, and check if they are all completed in a single run
             bool allSingleRunCompleted = true;
             int totalDashes = 0;
-            foreach(AreaStats areaStats in SaveData.Instance.Areas) {
+            foreach (AreaStats areaStats in SaveData.Instance.Areas) {
                 if (!AreaData.Areas[areaStats.ID].Interlude) {
                     int mode = 0;
                     foreach (AreaModeStats modeStats in areaStats.Modes ?? new AreaModeStats[0]) {
-                        if (AreaData.Areas[areaStats.ID].HasMode((AreaMode)mode++) && !modeStats.SingleRunCompleted) {
+                        if (AreaData.Areas[areaStats.ID].HasMode((AreaMode) mode++) && !modeStats.SingleRunCompleted) {
                             allSingleRunCompleted = false;
                         }
                     }
@@ -157,7 +181,7 @@ namespace Celeste.Mod.DashCountMod {
                 }
             }
 
-            if(allSingleRunCompleted) {
+            if (allSingleRunCompleted) {
                 row.Add(new OuiJournalPage.TextCell(Dialog.Deaths(totalDashes), self.TextJustify, 0.6f, self.TextColor));
             } else {
                 row.Add(new OuiJournalPage.IconCell("dot"));
@@ -167,28 +191,62 @@ namespace Celeste.Mod.DashCountMod {
         // ================ Dash Count in Chapter Panel ================
 
         bool dashCounterInChapterPanelEnabled = false;
+        private static Hook collabUtilsHook = null;
 
         public void SetDashCounterInChapterPanelEnabled(bool enabled) {
             if (enabled && !dashCounterInChapterPanelEnabled) {
                 Logger.Log("DashCountMod", "Hooking chapter panel rendering methods");
 
-                IL.Celeste.OuiChapterPanel.Render += ModOuiChapterPanelRender;
-                On.Celeste.OuiChapterPanel.UpdateStats += ModOuiChapterPanelUpdateStats;
-                IL.Celeste.OuiChapterPanel.SetStatsPosition += ModOuiChapterPanelSetStatsPosition;
-                On.Celeste.OuiChapterPanel.IncrementStatsDisplay += ModOuiChapterPanelIncrementStatsDisplay;
-            } else if(!enabled && dashCounterInChapterPanelEnabled) {
+                using (new DetourContext() { After = { "*" } }) { // be sure to apply _after_ the collab utils.
+                    IL.Celeste.OuiChapterPanel.Render += ModOuiChapterPanelRender;
+                    On.Celeste.OuiChapterPanel.UpdateStats += ModOuiChapterPanelUpdateStats;
+                    IL.Celeste.OuiChapterPanel.SetStatsPosition += ModOuiChapterPanelSetStatsPosition;
+                    On.Celeste.OuiChapterPanel.IncrementStatsDisplay += ModOuiChapterPanelIncrementStatsDisplay;
+                    On.Celeste.OuiChapterPanel.GetModeHeight += ModOuiChapterPanelGetModeHeight;
+                }
+
+                hookCollabUtils();
+            } else if (!enabled && dashCounterInChapterPanelEnabled) {
                 Logger.Log("DashCountMod", "Unhooking chapter panel rendering methods");
 
                 IL.Celeste.OuiChapterPanel.Render -= ModOuiChapterPanelRender;
                 On.Celeste.OuiChapterPanel.UpdateStats -= ModOuiChapterPanelUpdateStats;
                 IL.Celeste.OuiChapterPanel.SetStatsPosition -= ModOuiChapterPanelSetStatsPosition;
                 On.Celeste.OuiChapterPanel.IncrementStatsDisplay -= ModOuiChapterPanelIncrementStatsDisplay;
+                On.Celeste.OuiChapterPanel.GetModeHeight -= ModOuiChapterPanelGetModeHeight;
+
+                collabUtilsHook?.Dispose();
+                collabUtilsHook = null;
 
                 // hide the dash counter if currently shown: as we unhooked everything updating it, it will stay invisible.
                 dashesCounter.Visible = false;
             }
 
             dashCounterInChapterPanelEnabled = enabled;
+        }
+
+        private static void hookCollabUtils() {
+            if (collabUtilsHook == null) {
+                // is SpeedBerryPBInChapterPanel a thing?
+                EverestModule collabUtils = Everest.Modules.FirstOrDefault(module => module.Metadata.Name == "CollabUtils2");
+
+                if (collabUtils != null) {
+                    collabUtilsHook = new Hook(
+                        collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.SpeedBerryPBInChapterPanel").GetMethod("approach", BindingFlags.NonPublic | BindingFlags.Static),
+                        typeof(DashCountModModule).GetMethod("modSpeedBerryPBApproach", BindingFlags.NonPublic | BindingFlags.Static));
+
+                    Logger.Log("DashCountMod", "Collab utils speed berry PB counter was hooked");
+                }
+            }
+        }
+
+        private delegate Vector2 orig_approach(Vector2 from, Vector2 to, bool snap);
+        private static Vector2 modSpeedBerryPBApproach(orig_approach orig, Vector2 from, Vector2 to, bool snap) {
+            if ((Instance.dashesCounter?.Visible ?? false) && Instance.dashesOffset.Y != 160f) {
+                to.Y -= 40f;
+            }
+
+            return orig(from, to, snap);
         }
 
         private DashesCounterInChapterPanel dashesCounter;
@@ -207,11 +265,11 @@ namespace Celeste.Mod.DashCountMod {
             ILCursor cursor = new ILCursor(il);
 
             // move after the deaths counter positioning, and place ourselves after that to update dashes counter position as well
-            if(cursor.TryGotoNext(MoveType.After, instr => instr.MatchStfld(typeof(DeathsCounter), "Position"))) {
+            if (cursor.TryGotoNext(MoveType.After, instr => instr.MatchStfld(typeof(DeathsCounter), "Position"))) {
                 Logger.Log("DashCountMod", $"Injecting dashes counter position updating at {cursor.Index} in CIL code for OuiChapterPanel.Render");
 
                 cursor.Emit(OpCodes.Ldarg_0);
-                cursor.Emit(OpCodes.Ldfld, typeof(OuiChapterPanel).GetField("contentOffset", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance));
+                cursor.Emit(OpCodes.Ldfld, typeof(OuiChapterPanel).GetField("contentOffset", BindingFlags.NonPublic | BindingFlags.Instance));
                 cursor.EmitDelegate<Action<Vector2>>(UpdateDashesCounterRenderedPosition);
             }
         }
@@ -223,10 +281,10 @@ namespace Celeste.Mod.DashCountMod {
         private void ModOuiChapterPanelUpdateStats(On.Celeste.OuiChapterPanel.orig_UpdateStats orig, OuiChapterPanel self, bool wiggle, bool? overrideStrawberryWiggle, bool? overrideDeathWiggle, bool? overrideHeartWiggle) {
             orig(self, wiggle, overrideStrawberryWiggle, overrideDeathWiggle, overrideHeartWiggle);
 
-            dashesCounter.Visible = self.DisplayedStats.Modes[(int)self.Area.Mode].SingleRunCompleted && !AreaData.Get(self.Area).Interlude;
-            dashesCounter.Amount = self.DisplayedStats.Modes[(int)self.Area.Mode].BestDashes;
+            dashesCounter.Visible = self.DisplayedStats.Modes[(int) self.Area.Mode].SingleRunCompleted && !AreaData.Get(self.Area).Interlude;
+            dashesCounter.Amount = self.DisplayedStats.Modes[(int) self.Area.Mode].BestDashes;
 
-            if(wiggle && dashesCounter.Visible && (overrideDeathWiggle ?? true)) {
+            if (wiggle && dashesCounter.Visible && (overrideDeathWiggle ?? true)) {
                 dashesCounter.Wiggle();
             }
         }
@@ -247,17 +305,17 @@ namespace Celeste.Mod.DashCountMod {
             // we will cross 2 occurrences when deathsOffset will be set: first time with the heart, second time without.
             // the only difference is the X offset, so put the code in common.
             bool hasHeart = true;
-            while(cursor.TryGotoNext(MoveType.After, instr => instr.MatchStfld(typeof(OuiChapterPanel), "deathsOffset"))) {
+            while (cursor.TryGotoNext(MoveType.After, instr => instr.MatchStfld(typeof(OuiChapterPanel), "deathsOffset"))) {
                 Logger.Log("DashCountMod", $"Injecting dashes counter position updating at {cursor.Index} in CIL code for OuiChapterPanel.SetStatsPosition (has heart = {hasHeart})");
 
                 // bool approach
                 cursor.Emit(OpCodes.Ldarg_1);
                 // StrawberriesCounter strawberries
                 cursor.Emit(OpCodes.Ldarg_0);
-                cursor.Emit(OpCodes.Ldfld, typeof(OuiChapterPanel).GetField("strawberries", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance));
+                cursor.Emit(OpCodes.Ldfld, typeof(OuiChapterPanel).GetField("strawberries", BindingFlags.NonPublic | BindingFlags.Instance));
                 // DeathsCounter deaths
                 cursor.Emit(OpCodes.Ldarg_0);
-                cursor.Emit(OpCodes.Ldfld, typeof(OuiChapterPanel).GetField("deaths", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance));
+                cursor.Emit(OpCodes.Ldfld, typeof(OuiChapterPanel).GetField("deaths", BindingFlags.NonPublic | BindingFlags.Instance));
                 // bool hasHeart
                 cursor.Emit(hasHeart ? OpCodes.Ldc_I4_1 : OpCodes.Ldc_I4_0);
                 // function call
@@ -268,27 +326,29 @@ namespace Celeste.Mod.DashCountMod {
         }
 
         private float ShiftCountersPosition(float position) {
-            return dashesCounter.Visible ? position - 40 : position;
+            return dashesCounter.Visible && dashesOffset.Y != 160f ? position - 40 : position;
         }
 
         private void UpdateDashesCounterOffset(bool approach, StrawberriesCounter strawberries, DeathsCounter deaths, bool hasHeart) {
             int shift = 0;
             if (strawberries.Visible) shift += 40;
             if (deaths.Visible) shift += 40;
+            if (speedBerryPBInChapterPanel != null && speedBerryPBInChapterPanel.GetValue(null) is Component component && component.Visible) shift += 40;
+            if (shift == 120f) shift += 40;
             dashesOffset = Approach(dashesOffset, new Vector2(hasHeart ? 120f : 0f, shift), !approach);
         }
 
         // vanilla method copypaste
         private Vector2 Approach(Vector2 from, Vector2 to, bool snap) {
             if (snap) return to;
-            return from += (to - from) * (1f - (float)Math.Pow(0.0010000000474974513, Engine.DeltaTime));
+            return from += (to - from) * (1f - (float) Math.Pow(0.0010000000474974513, Engine.DeltaTime));
         }
 
-        private IEnumerator ModOuiChapterPanelIncrementStatsDisplay(On.Celeste.OuiChapterPanel.orig_IncrementStatsDisplay orig, OuiChapterPanel self, AreaModeStats modeStats, 
+        private IEnumerator ModOuiChapterPanelIncrementStatsDisplay(On.Celeste.OuiChapterPanel.orig_IncrementStatsDisplay orig, OuiChapterPanel self, AreaModeStats modeStats,
             AreaModeStats newModeStats, bool doHeartGem, bool doStrawberries, bool doDeaths, bool doRemixUnlock) {
 
             IEnumerator origMethod = orig(self, modeStats, newModeStats, doHeartGem, doStrawberries, doDeaths, doRemixUnlock);
-            while(origMethod.MoveNext()) yield return origMethod.Current;
+            while (origMethod.MoveNext()) yield return origMethod.Current;
 
             if (newModeStats.SingleRunCompleted && modeStats.BestDashes != newModeStats.BestDashes) {
                 yield return 0.5f;
@@ -314,6 +374,14 @@ namespace Celeste.Mod.DashCountMod {
             }
 
             yield break;
+        }
+
+        private int ModOuiChapterPanelGetModeHeight(On.Celeste.OuiChapterPanel.orig_GetModeHeight orig, OuiChapterPanel self) {
+            int origModeHeight = orig(self);
+            if (origModeHeight == 540 && dashesOffset.Y == 160f) {
+                return 610;
+            }
+            return origModeHeight;
         }
 
         // nearly another vanilla method copypaste
