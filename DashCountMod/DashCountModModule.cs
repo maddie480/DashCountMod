@@ -323,6 +323,16 @@ namespace Celeste.Mod.DashCountMod {
 
                 hasHeart = false;
             }
+
+            cursor.Index = 0;
+
+            if (cursor.TryGotoNext(MoveType.After,
+                instr => instr.MatchLdfld<OuiChapterPanel>("deaths"),
+                instr => instr.MatchLdfld<Component>("Visible"))) {
+
+                Logger.Log("DashCountMod", $"Patching chapter panel columns count at {cursor.Index} in CIL code for OuiChapterPanel.SetStatsPosition");
+                cursor.EmitDelegate<Func<bool, bool>>(orig => orig || (dashesCounter?.Visible ?? false));
+            }
         }
 
         private float ShiftCountersPosition(float position) {
