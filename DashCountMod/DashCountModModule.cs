@@ -25,12 +25,14 @@ namespace Celeste.Mod.DashCountMod {
             // mod methods here
             Everest.Events.Journal.OnEnter += OnJournalEnter;
             On.Celeste.OuiChapterPanel.ctor += ModOuiChapterPanelConstructor;
+            On.Celeste.Level.Begin += OnLevelBegin;
         }
 
         public override void Unload() {
             // unmod methods here
             Everest.Events.Journal.OnEnter -= OnJournalEnter;
             On.Celeste.OuiChapterPanel.ctor -= ModOuiChapterPanelConstructor;
+            On.Celeste.Level.Begin -= OnLevelBegin;
         }
 
         public override void Initialize() {
@@ -48,6 +50,35 @@ namespace Celeste.Mod.DashCountMod {
                 if ((_Settings as DashCountModSettings).DashCountInChapterPanel) {
                     // be sure the collab utils are hooked (they might not have been loaded when the dash count mod was loaded).
                     hookCollabUtils();
+                }
+            }
+        }
+
+        // ================ Display Dash Count In Level ================
+
+        DashCountModSettings.ShowDashCountInGameOptions showDashCountInGame = DashCountModSettings.ShowDashCountInGameOptions.None;
+
+        private void OnLevelBegin(On.Celeste.Level.orig_Begin orig, Level self) {
+            orig(self);
+
+            if (showDashCountInGame != DashCountModSettings.ShowDashCountInGameOptions.None) {
+                self.Add(new DashCountDisplayInLevel(self.Session, showDashCountInGame));
+            }
+        }
+
+        public void SetShowDashCountInGame(DashCountModSettings.ShowDashCountInGameOptions value) {
+            showDashCountInGame = value;
+
+            // add/remove/update the dash count accordingly if we already are in a level.
+            if (Engine.Scene is Level level) {
+                DashCountDisplayInLevel currentDisplay = level.Entities.FindFirst<DashCountDisplayInLevel>();
+
+                if (showDashCountInGame == DashCountModSettings.ShowDashCountInGameOptions.None) {
+                    currentDisplay?.RemoveSelf();
+                } else if (currentDisplay != null) {
+                    currentDisplay.SetFormat(value);
+                } else {
+                    level.Add(new DashCountDisplayInLevel(level.Session, showDashCountInGame));
                 }
             }
         }
