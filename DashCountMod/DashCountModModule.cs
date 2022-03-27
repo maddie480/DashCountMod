@@ -25,14 +25,12 @@ namespace Celeste.Mod.DashCountMod {
             // mod methods here
             Everest.Events.Journal.OnEnter += OnJournalEnter;
             On.Celeste.OuiChapterPanel.ctor += ModOuiChapterPanelConstructor;
-            On.Celeste.Level.Begin += OnLevelBegin;
         }
 
         public override void Unload() {
             // unmod methods here
             Everest.Events.Journal.OnEnter -= OnJournalEnter;
             On.Celeste.OuiChapterPanel.ctor -= ModOuiChapterPanelConstructor;
-            On.Celeste.Level.Begin -= OnLevelBegin;
         }
 
         public override void Initialize() {
@@ -58,29 +56,39 @@ namespace Celeste.Mod.DashCountMod {
 
         DashCountModSettings.ShowDashCountInGameOptions showDashCountInGame = DashCountModSettings.ShowDashCountInGameOptions.None;
 
-        private void OnLevelBegin(On.Celeste.Level.orig_Begin orig, Level self) {
-            orig(self);
-
-            if (showDashCountInGame != DashCountModSettings.ShowDashCountInGameOptions.None) {
-                self.Add(new DashCountDisplayInLevel(self.Session, showDashCountInGame));
-            }
-        }
-
         public void SetShowDashCountInGame(DashCountModSettings.ShowDashCountInGameOptions value) {
-            showDashCountInGame = value;
+            // (un)hook methods
+            bool wasEnabled = (showDashCountInGame != DashCountModSettings.ShowDashCountInGameOptions.None);
+            bool isEnabled = (value != DashCountModSettings.ShowDashCountInGameOptions.None);
+
+            if (isEnabled && !wasEnabled) {
+                Logger.Log("DashCountMod", "Hooking level enter to add in-game dash counter");
+                On.Celeste.Level.Begin += OnLevelBegin;
+
+            } else if (!isEnabled && wasEnabled) {
+                Logger.Log("DashCountMod", "Unhooking level enter to stop adding in-game dash counter");
+                On.Celeste.Level.Begin -= OnLevelBegin;
+            }
 
             // add/remove/update the dash count accordingly if we already are in a level.
             if (Engine.Scene is Level level) {
                 DashCountDisplayInLevel currentDisplay = level.Entities.FindFirst<DashCountDisplayInLevel>();
 
-                if (showDashCountInGame == DashCountModSettings.ShowDashCountInGameOptions.None) {
+                if (value == DashCountModSettings.ShowDashCountInGameOptions.None) {
                     currentDisplay?.RemoveSelf();
                 } else if (currentDisplay != null) {
                     currentDisplay.SetFormat(value);
                 } else {
-                    level.Add(new DashCountDisplayInLevel(level.Session, showDashCountInGame));
+                    level.Add(new DashCountDisplayInLevel(level.Session, value));
                 }
             }
+
+            showDashCountInGame = value;
+        }
+
+        private void OnLevelBegin(On.Celeste.Level.orig_Begin orig, Level self) {
+            orig(self);
+            self.Add(new DashCountDisplayInLevel(self.Session, showDashCountInGame));
         }
 
         // ================ Journal Page ================
