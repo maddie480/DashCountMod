@@ -6,7 +6,6 @@
         private bool fewestDashCountOnProgressPage = false;
         private ShowDashCountInGameOptions showDashCountInGame = ShowDashCountInGameOptions.None;
 
-        [SettingInGame(false)]
         public bool DashCountInChapterPanel {
             get { return dashCountInChapterPanel; }
             set {
@@ -15,7 +14,6 @@
             }
         }
 
-        [SettingInGame(false)]
         public bool FewestDashCountOnProgressPage {
             get { return fewestDashCountOnProgressPage; }
             set {

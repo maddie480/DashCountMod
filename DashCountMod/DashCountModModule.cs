@@ -106,32 +106,78 @@ namespace Celeste.Mod.DashCountMod {
 
         bool fewestDashesInProgressPageEnabled = false;
 
+        private static Hook collabUtilsJournalsHook = null;
+        private static ILHook collabUtilsOverworldJournalSizeHook = null;
+        private static ILHook collabUtilsLobbyJournalSizeHook = null;
+
         public void SetFewestDashesInProgressPageEnabled(bool enabled) {
             if (enabled && !fewestDashesInProgressPageEnabled) {
                 Logger.Log("DashCountMod", "Hooking journal progress page rendering methods");
 
+                IL.Celeste.OuiJournalProgress.ctor += ModOuiJournalProgressColumnSizes;
                 IL.Celeste.OuiJournalProgress.ctor += ModOuiJournalProgressConstructor;
+                hookCollabUtilsJournalPage();
             } else if (!enabled && fewestDashesInProgressPageEnabled) {
                 Logger.Log("DashCountMod", "Unhooking journal progress page rendering methods");
 
+                IL.Celeste.OuiJournalProgress.ctor -= ModOuiJournalProgressColumnSizes;
                 IL.Celeste.OuiJournalProgress.ctor -= ModOuiJournalProgressConstructor;
+
+                collabUtilsJournalsHook?.Dispose();
+                collabUtilsJournalsHook = null;
+
+                collabUtilsOverworldJournalSizeHook?.Dispose();
+                collabUtilsOverworldJournalSizeHook = null;
+
+                collabUtilsLobbyJournalSizeHook?.Dispose();
+                collabUtilsLobbyJournalSizeHook = null;
             }
 
             fewestDashesInProgressPageEnabled = enabled;
         }
 
-        private void ModOuiJournalProgressConstructor(ILContext il) {
+        private static void hookCollabUtilsJournalPage() {
+            if (collabUtilsJournalsHook == null) {
+                // is OuiJournalCollabProgressDashCountMod a thing?
+                EverestModule collabUtils = Everest.Modules.FirstOrDefault(module => module.Metadata.Name == "CollabUtils2");
+
+                if (collabUtils != null) {
+                    collabUtilsJournalsHook = new Hook(
+                        collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.OuiJournalCollabProgressDashCountMod").GetMethod("IsDashCountEnabled", BindingFlags.NonPublic | BindingFlags.Static),
+                        typeof(DashCountModModule).GetMethod("enableDashCountModInCollabUtils", BindingFlags.NonPublic | BindingFlags.Static));
+
+                    collabUtilsOverworldJournalSizeHook = new ILHook(
+                        collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.OuiJournalCollabProgressInOverworld").GetConstructor(new Type[] { typeof(OuiJournal) }),
+                        ModOuiJournalProgressColumnSizes);
+
+                    collabUtilsLobbyJournalSizeHook = new ILHook(
+                        collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.OuiJournalCollabProgressInLobby").GetConstructor(new Type[] { typeof(OuiJournal), typeof(string), typeof(bool) }),
+                        ModOuiJournalProgressColumnSizes);
+
+                    Logger.Log("DashCountMod", "Collab utils dash count column in journals were enabled");
+                }
+            }
+        }
+
+        private static bool enableDashCountModInCollabUtils(Func<bool> orig) {
+            return true;
+        }
+
+        private static void ModOuiJournalProgressColumnSizes(ILContext il) {
             ILCursor cursor = new ILCursor(il);
 
             // patch columns to be narrower (100 => 80, 150 => 120, 20 => 0)
             while (cursor.TryGotoNext(instr => instr.MatchLdcR4(100f) || instr.MatchLdcR4(150f) || instr.MatchLdcR4(20f))) {
                 float currentValue = (float) cursor.Next.Operand;
                 float newValue = (currentValue == 100f ? 80f : (currentValue == 150f ? 120f : 0f));
-                Logger.Log("DashCountMod", $"Modding column size from {currentValue} to {newValue} at {cursor.Index} in CIL code for OuiJournalProgress constructor");
+                Logger.Log("DashCountMod", $"Modding column size from {currentValue} to {newValue} at {cursor.Index} in CIL code for {il.Method.FullName}");
                 cursor.Next.Operand = newValue;
             }
+        }
 
-            cursor.Index = 0;
+        private void ModOuiJournalProgressConstructor(ILContext il) {
+            ILCursor cursor = new ILCursor(il);
+
             // add a column header for dash counts, just before the "time" column
             if (cursor.TryGotoNext(instr => instr.MatchLdstr("time"))) {
                 Logger.Log("DashCountMod", $"Adding column header for fewest dashes at {cursor.Index} in CIL code for OuiJournalProgress constructor");
