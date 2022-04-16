@@ -159,9 +159,11 @@ namespace Celeste.Mod.DashCountMod {
 
         // ================ Dash Count in Progress Page ================
 
-        DashCountOptions fewestDashesInProgressPage = DashCountOptions.None;
+        static DashCountOptions fewestDashesInProgressPage = DashCountOptions.None;
 
         private static Hook collabUtilsJournalsHook = null;
+        private static Hook collabUtilsJournalsTotalDashesHook = null;
+        private static Hook collabUtilsJournalsLevelDashesHook = null;
         private static ILHook collabUtilsOverworldJournalSizeHook = null;
         private static ILHook collabUtilsLobbyJournalSizeHook = null;
 
@@ -185,6 +187,12 @@ namespace Celeste.Mod.DashCountMod {
                 collabUtilsJournalsHook?.Dispose();
                 collabUtilsJournalsHook = null;
 
+                collabUtilsJournalsTotalDashesHook?.Dispose();
+                collabUtilsJournalsTotalDashesHook = null;
+
+                collabUtilsJournalsLevelDashesHook?.Dispose();
+                collabUtilsJournalsLevelDashesHook = null;
+
                 collabUtilsOverworldJournalSizeHook?.Dispose();
                 collabUtilsOverworldJournalSizeHook = null;
 
@@ -205,6 +213,14 @@ namespace Celeste.Mod.DashCountMod {
                         collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.OuiJournalCollabProgressDashCountMod").GetMethod("IsDashCountEnabled", BindingFlags.NonPublic | BindingFlags.Static),
                         typeof(DashCountModModule).GetMethod("enableDashCountModInCollabUtils", BindingFlags.NonPublic | BindingFlags.Static));
 
+                    collabUtilsJournalsTotalDashesHook = new Hook(
+                        collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.OuiJournalCollabProgressDashCountMod").GetMethod("DisplaysTotalDashes", BindingFlags.NonPublic | BindingFlags.Static),
+                        typeof(DashCountModModule).GetMethod("displaysTotalDashesInCollabUtils", BindingFlags.NonPublic | BindingFlags.Static));
+
+                    collabUtilsJournalsLevelDashesHook = new Hook(
+                        collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.OuiJournalCollabProgressDashCountMod").GetMethod("GetLevelDashesForJournalProgress", BindingFlags.NonPublic | BindingFlags.Static),
+                        typeof(DashCountModModule).GetMethod("getLevelDashesInJournalProgressInCollabUtils", BindingFlags.NonPublic | BindingFlags.Static));
+
                     collabUtilsOverworldJournalSizeHook = new ILHook(
                         collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.OuiJournalCollabProgressInOverworld").GetConstructor(new Type[] { typeof(OuiJournal) }),
                         ModOuiJournalProgressColumnSizes);
@@ -220,6 +236,14 @@ namespace Celeste.Mod.DashCountMod {
 
         private static bool enableDashCountModInCollabUtils(Func<bool> orig) {
             return true;
+        }
+
+        private static bool displaysTotalDashesInCollabUtils(Func<bool> orig) {
+            return (fewestDashesInProgressPage == DashCountOptions.Total);
+        }
+
+        private static int getLevelDashesInJournalProgressInCollabUtils(Func<AreaStats, int> orig, AreaStats stats) {
+            return GetTotalDashesForJournalProgress(stats);
         }
 
         private static void ModOuiJournalProgressColumnSizes(ILContext il) {
@@ -292,13 +316,13 @@ namespace Celeste.Mod.DashCountMod {
             table.AddColumn(new OuiJournalPage.IconCell("max480/DashCountMod/dashes", 80f));
         }
 
-        private int GetTotalDashesForJournalProgress(AreaStats stats) {
+        private static int GetTotalDashesForJournalProgress(AreaStats stats) {
             if (fewestDashesInProgressPage == DashCountOptions.Fewest) {
                 return stats.BestTotalDashes;
             }
 
             int count = 0;
-            if ((_SaveData as DashCountModSaveData).DashCountPerLevel.TryGetValue(stats.GetSID(), out Dictionary<AreaMode, int> result)) {
+            if ((Instance._SaveData as DashCountModSaveData).DashCountPerLevel.TryGetValue(stats.GetSID(), out Dictionary<AreaMode, int> result)) {
                 foreach (int value in result.Values) {
                     count += value;
                 }
@@ -307,7 +331,7 @@ namespace Celeste.Mod.DashCountMod {
         }
 
         private void AddColumnValueForFewestDashes(AreaStats areaStats, OuiJournalPage.Row row, OuiJournalProgress self) {
-            if (fewestDashesInProgressPage == DashCountOptions.Total) {
+            if (fewestDashesInProgressPage == DashCountOptions.Total && areaStats.TotalTimePlayed > 0) {
                 row.Add(new OuiJournalPage.TextCell(Dialog.Deaths(GetTotalDashesForJournalProgress(areaStats)), self.TextJustify, 0.5f, self.TextColor));
                 return;
             }
