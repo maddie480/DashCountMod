@@ -6,6 +6,7 @@
         private DashCountOptions dashCountInChapterPanel = DashCountOptions.None;
         private DashCountOptions dashCountOnProgressPage = DashCountOptions.None;
         private ShowDashCountInGameOptions showDashCountInGame = ShowDashCountInGameOptions.None;
+        private bool countDreamDashRedirectsAsDashes = false;
 
         public DashCountOptions DashCountInChapterPanel {
             get { return dashCountInChapterPanel; }
@@ -28,6 +29,14 @@
             set {
                 showDashCountInGame = value;
                 DashCountModModule.Instance.SetShowDashCountInGame(value);
+            }
+        }
+
+        public bool CountDreamDashRedirectsAsDashes {
+            get { return countDreamDashRedirectsAsDashes; }
+            set {
+                countDreamDashRedirectsAsDashes = value;
+                DashCountModModule.Instance.SetCountDreamDashRedirectsAsDashes(value);
             }
         }
     }

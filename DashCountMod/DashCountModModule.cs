@@ -22,6 +22,7 @@ namespace Celeste.Mod.DashCountMod {
 
         public DashCountModModule() {
             Instance = this;
+            Logger.SetLogLevel("DashCountMod", LogLevel.Info);
         }
 
         public override void Load() {
@@ -52,9 +53,16 @@ namespace Celeste.Mod.DashCountMod {
                 Logger.Log("DashCountMod", $"I found the speed berry PB component: {speedBerryPBInChapterPanel.Name} " +
                     $"(type {speedBerryPBInChapterPanel.DeclaringType} in {speedBerryPBInChapterPanel.DeclaringType.Assembly})");
 
+                // be sure other mods are hooked (they might not have been loaded when the dash count mod was loaded).
+
                 if ((_Settings as DashCountModSettings).DashCountInChapterPanel != DashCountOptions.None) {
-                    // be sure the collab utils are hooked (they might not have been loaded when the dash count mod was loaded).
                     hookCollabUtils();
+                }
+                if ((_Settings as DashCountModSettings).DashCountOnProgressPage != DashCountOptions.None) {
+                    hookCollabUtilsJournalPage();
+                }
+                if ((_Settings as DashCountModSettings).CountDreamDashRedirectsAsDashes) {
+                    hookPandorasBox();
                 }
             }
         }
@@ -68,26 +76,28 @@ namespace Celeste.Mod.DashCountMod {
                 Logger.Log("DashCountMod", $"Adding code to count dashes at {cursor.Index} in IL for Player.CallDashEvents()");
 
                 cursor.Emit(OpCodes.Ldarg_0);
-                cursor.EmitDelegate<Action<Player>>(self => {
-                    if (self.Scene != null) {
-                        AreaKey area = self.SceneAs<Level>().Session.Area;
+                cursor.EmitDelegate<Action<Player>>(AddDash);
+            }
+        }
 
-                        if ((_SaveData as DashCountModSaveData).DashCountPerLevel.TryGetValue(area.GetSID(), out Dictionary<AreaMode, int> dashCounts)) {
-                            if (dashCounts.TryGetValue(area.Mode, out int currentDashCount)) {
-                                // area and mode stats exist, we should increment it
-                                dashCounts[area.Mode]++;
-                            } else {
-                                // area stats exist, mode stats don't
-                                dashCounts[area.Mode] = 1;
-                            }
-                        } else {
-                            // area stats don't exist, create them
-                            Dictionary<AreaMode, int> areaStats = new Dictionary<AreaMode, int>();
-                            areaStats[area.Mode] = 1;
-                            (_SaveData as DashCountModSaveData).DashCountPerLevel[area.GetSID()] = areaStats;
-                        }
+        private static void AddDash(Entity entityInScene) {
+            if (entityInScene.Scene != null) {
+                AreaKey area = entityInScene.SceneAs<Level>().Session.Area;
+
+                if ((Instance._SaveData as DashCountModSaveData).DashCountPerLevel.TryGetValue(area.GetSID(), out Dictionary<AreaMode, int> dashCounts)) {
+                    if (dashCounts.TryGetValue(area.Mode, out int currentDashCount)) {
+                        // area and mode stats exist, we should increment it
+                        dashCounts[area.Mode]++;
+                    } else {
+                        // area stats exist, mode stats don't
+                        dashCounts[area.Mode] = 1;
                     }
-                });
+                } else {
+                    // area stats don't exist, create them
+                    Dictionary<AreaMode, int> areaStats = new Dictionary<AreaMode, int>();
+                    areaStats[area.Mode] = 1;
+                    (Instance._SaveData as DashCountModSaveData).DashCountPerLevel[area.GetSID()] = areaStats;
+                }
             }
         }
 
@@ -106,6 +116,52 @@ namespace Celeste.Mod.DashCountMod {
                 (_SaveData as DashCountModSaveData).OldDashCount = oldDashCount;
             }
         }
+
+        // ================ Count Dream Dash Redirects As Dashes ================
+
+        private Hook pandorasBoxHook = null;
+
+        public void SetCountDreamDashRedirectsAsDashes(bool enabled) {
+            if (enabled && pandorasBoxHook == null) {
+                Logger.Log("DashCountMod", "Hooking Pandora's Box dream dash redirects");
+                hookPandorasBox();
+
+            } else if (!enabled && pandorasBoxHook != null) {
+                Logger.Log("DashCountMod", "Unhooking Pandora's Box dream dash redirects");
+
+                pandorasBoxHook?.Dispose();
+                pandorasBoxHook = null;
+            }
+        }
+
+        private void hookPandorasBox() {
+            if (pandorasBoxHook == null) {
+                // is Pandora's Box a thing?
+                EverestModule pandorasBox = Everest.Modules.FirstOrDefault(module => module.Metadata.Name == "PandorasBox");
+
+                if (pandorasBox != null) {
+                    pandorasBoxHook = new Hook(
+                        pandorasBox.GetType().Assembly.GetType("Celeste.Mod.PandorasBox.DreamDashController").GetMethod("dreamDashRedirect", BindingFlags.NonPublic | BindingFlags.Instance),
+                        typeof(DashCountModModule).GetMethod("countPandorasBoxDashes", BindingFlags.NonPublic | BindingFlags.Static));
+
+                    Logger.Log("DashCountMod", "Pandora's Box Dream Dash Controller hooked");
+                }
+            }
+        }
+
+        private static bool countPandorasBoxDashes(Func<Entity, Player, bool> orig, Entity self, Player player) {
+            bool didRedirect = orig(self, player);
+
+            if (didRedirect) {
+                SaveData.Instance.TotalDashes++;
+                self.SceneAs<Level>().Session.Dashes++;
+                Stats.Increment(Stat.DASHES);
+                AddDash(self);
+            }
+
+            return didRedirect;
+        }
+
 
         // ================ Display Dash Count In Level ================
 
