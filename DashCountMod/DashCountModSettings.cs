@@ -24,7 +24,7 @@
             }
         }
 
-        public ShowDashCountInGameOptions ShowFewestDashCountInGame {
+        public ShowDashCountInGameOptions DashCountInGame {
             get { return showDashCountInGame; }
             set {
                 showDashCountInGame = value;
