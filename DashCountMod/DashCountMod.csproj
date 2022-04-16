@@ -85,6 +85,7 @@
   <ItemGroup>
     <Compile Include="DashCountDisplayInLevel.cs" />
     <Compile Include="DashCountModModule.cs" />
+    <Compile Include="DashCountModSaveData.cs" />
     <Compile Include="DashCountModSettings.cs" />
     <Compile Include="DashesCounterInChapterPanel.cs" />
     <Compile Include="OuiJournalDashes.cs" />

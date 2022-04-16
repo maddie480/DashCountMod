@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework;
 using Monocle;
 using MonoMod.Utils;
 using System;
+using System.Collections.Generic;
 
 namespace Celeste.Mod.DashCountMod {
     class DashCountDisplayInLevel : Entity {
@@ -98,27 +99,24 @@ namespace Celeste.Mod.DashCountMod {
         }
 
         private string getCountToDisplay() {
-            int dashCountInLevel = session.Dashes;
+            int dashCountInLevel = 0;
 
-            int dashCountInFile = 0;
-            foreach (AreaStats areaStats in SaveData.Instance.Areas) {
-                for (int i = 0; i < areaStats.Modes.Length; i++) {
-                    if (session.Area.ID == areaStats.ID && (int) session.Area.Mode == i) {
-                        // replace the stat with the current level stats.
-                        dashCountInFile += dashCountInLevel;
-                    } else {
-                        dashCountInFile += areaStats.Modes[i].BestDashes;
-                    }
+            AreaKey area = SceneAs<Level>().Session.Area;
+            if ((DashCountModModule.Instance._SaveData as DashCountModSaveData).DashCountPerLevel.TryGetValue(area.GetSID(), out Dictionary<AreaMode, int> areaModes)) {
+                if (areaModes.TryGetValue(area.Mode, out int totalDashes)) {
+                    dashCountInLevel = totalDashes;
                 }
             }
 
             switch (format) {
+                case DashCountModSettings.ShowDashCountInGameOptions.Session:
+                    return "" + session.Dashes;
                 case DashCountModSettings.ShowDashCountInGameOptions.Chapter:
                     return "" + dashCountInLevel;
                 case DashCountModSettings.ShowDashCountInGameOptions.File:
-                    return "" + dashCountInFile;
+                    return "" + SaveData.Instance.TotalDashes;
                 default:
-                    return dashCountInFile + " (" + dashCountInLevel + ")";
+                    return SaveData.Instance.TotalDashes + " (" + dashCountInLevel + ")";
             }
         }
     }

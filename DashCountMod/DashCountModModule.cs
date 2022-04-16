@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Microsoft.Xna.Framework;
@@ -7,6 +8,7 @@ using Mono.Cecil.Cil;
 using Monocle;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
+using static Celeste.Mod.DashCountMod.DashCountModSettings;
 
 namespace Celeste.Mod.DashCountMod {
     public class DashCountModModule : EverestModule {
@@ -16,6 +18,7 @@ namespace Celeste.Mod.DashCountMod {
         private static FieldInfo speedBerryPBInChapterPanel;
 
         public override Type SettingsType => typeof(DashCountModSettings);
+        public override Type SaveDataType => typeof(DashCountModSaveData);
 
         public DashCountModModule() {
             Instance = this;
@@ -25,12 +28,16 @@ namespace Celeste.Mod.DashCountMod {
             // mod methods here
             Everest.Events.Journal.OnEnter += OnJournalEnter;
             On.Celeste.OuiChapterPanel.ctor += ModOuiChapterPanelConstructor;
+            IL.Celeste.Player.CallDashEvents += CountDashes;
+            On.Celeste.Session.ctor_AreaKey_string_AreaStats += SaveOldDashCount;
         }
 
         public override void Unload() {
             // unmod methods here
             Everest.Events.Journal.OnEnter -= OnJournalEnter;
             On.Celeste.OuiChapterPanel.ctor -= ModOuiChapterPanelConstructor;
+            IL.Celeste.Player.CallDashEvents -= CountDashes;
+            On.Celeste.Session.ctor_AreaKey_string_AreaStats -= SaveOldDashCount;
         }
 
         public override void Initialize() {
@@ -45,22 +52,70 @@ namespace Celeste.Mod.DashCountMod {
                 Logger.Log("DashCountMod", $"I found the speed berry PB component: {speedBerryPBInChapterPanel.Name} " +
                     $"(type {speedBerryPBInChapterPanel.DeclaringType} in {speedBerryPBInChapterPanel.DeclaringType.Assembly})");
 
-                if ((_Settings as DashCountModSettings).DashCountInChapterPanel) {
+                if ((_Settings as DashCountModSettings).DashCountInChapterPanel != DashCountOptions.None) {
                     // be sure the collab utils are hooked (they might not have been loaded when the dash count mod was loaded).
                     hookCollabUtils();
                 }
             }
         }
 
+        // ================ Custom Dash Counting ================
+
+        private void CountDashes(ILContext il) {
+            ILCursor cursor = new ILCursor(il);
+            if (cursor.TryGotoNext(instr => instr.MatchLdfld<SaveData>("TotalDashes"))) {
+                // this is the place where vanilla increments the TotalDashes count in the save file: increment our own dash count as well.
+                Logger.Log("DashCountMod", $"Adding code to count dashes at {cursor.Index} in IL for Player.CallDashEvents()");
+
+                cursor.Emit(OpCodes.Ldarg_0);
+                cursor.EmitDelegate<Action<Player>>(self => {
+                    if (self.Scene != null) {
+                        AreaKey area = self.SceneAs<Level>().Session.Area;
+
+                        if ((_SaveData as DashCountModSaveData).DashCountPerLevel.TryGetValue(area.GetSID(), out Dictionary<AreaMode, int> dashCounts)) {
+                            if (dashCounts.TryGetValue(area.Mode, out int currentDashCount)) {
+                                // area and mode stats exist, we should increment it
+                                dashCounts[area.Mode]++;
+                            } else {
+                                // area stats exist, mode stats don't
+                                dashCounts[area.Mode] = 1;
+                            }
+                        } else {
+                            // area stats don't exist, create them
+                            Dictionary<AreaMode, int> areaStats = new Dictionary<AreaMode, int>();
+                            areaStats[area.Mode] = 1;
+                            (_SaveData as DashCountModSaveData).DashCountPerLevel[area.GetSID()] = areaStats;
+                        }
+                    }
+                });
+            }
+        }
+
+        private void SaveOldDashCount(On.Celeste.Session.orig_ctor_AreaKey_string_AreaStats orig, Session self, AreaKey area, string checkpoint, AreaStats oldStats) {
+            orig(self, area, checkpoint, oldStats);
+
+            if (oldStats == null) {
+                int oldDashCount = 0;
+
+                if ((_SaveData as DashCountModSaveData).DashCountPerLevel.TryGetValue(area.GetSID(), out Dictionary<AreaMode, int> areaModes)) {
+                    if (areaModes.TryGetValue(area.Mode, out int totalDashes)) {
+                        oldDashCount = totalDashes;
+                    }
+                }
+
+                (_SaveData as DashCountModSaveData).OldDashCount = oldDashCount;
+            }
+        }
+
         // ================ Display Dash Count In Level ================
 
-        DashCountModSettings.ShowDashCountInGameOptions showDashCountInGame = DashCountModSettings.ShowDashCountInGameOptions.None;
+        ShowDashCountInGameOptions showDashCountInGame = ShowDashCountInGameOptions.None;
 
-        public void SetShowDashCountInGame(DashCountModSettings.ShowDashCountInGameOptions value) {
+        public void SetShowDashCountInGame(ShowDashCountInGameOptions value) {
+            bool wasEnabled = (showDashCountInGame != ShowDashCountInGameOptions.None);
+            bool isEnabled = (value != ShowDashCountInGameOptions.None);
+
             // (un)hook methods
-            bool wasEnabled = (showDashCountInGame != DashCountModSettings.ShowDashCountInGameOptions.None);
-            bool isEnabled = (value != DashCountModSettings.ShowDashCountInGameOptions.None);
-
             if (isEnabled && !wasEnabled) {
                 Logger.Log("DashCountMod", "Hooking level enter to add in-game dash counter");
                 On.Celeste.Level.Begin += OnLevelBegin;
@@ -74,7 +129,7 @@ namespace Celeste.Mod.DashCountMod {
             if (Engine.Scene is Level level) {
                 DashCountDisplayInLevel currentDisplay = level.Entities.FindFirst<DashCountDisplayInLevel>();
 
-                if (value == DashCountModSettings.ShowDashCountInGameOptions.None) {
+                if (value == ShowDashCountInGameOptions.None) {
                     currentDisplay?.RemoveSelf();
                 } else if (currentDisplay != null) {
                     currentDisplay.SetFormat(value);
@@ -104,20 +159,24 @@ namespace Celeste.Mod.DashCountMod {
 
         // ================ Dash Count in Progress Page ================
 
-        bool fewestDashesInProgressPageEnabled = false;
+        DashCountOptions fewestDashesInProgressPage = DashCountOptions.None;
 
         private static Hook collabUtilsJournalsHook = null;
         private static ILHook collabUtilsOverworldJournalSizeHook = null;
         private static ILHook collabUtilsLobbyJournalSizeHook = null;
 
-        public void SetFewestDashesInProgressPageEnabled(bool enabled) {
-            if (enabled && !fewestDashesInProgressPageEnabled) {
+        public void SetFewestDashesInProgressPage(DashCountOptions newValue) {
+            bool wasEnabled = (fewestDashesInProgressPage != DashCountOptions.None);
+            bool isEnabled = (newValue != DashCountOptions.None);
+
+            // (un)hook methods
+            if (isEnabled && !wasEnabled) {
                 Logger.Log("DashCountMod", "Hooking journal progress page rendering methods");
 
                 IL.Celeste.OuiJournalProgress.ctor += ModOuiJournalProgressColumnSizes;
                 IL.Celeste.OuiJournalProgress.ctor += ModOuiJournalProgressConstructor;
                 hookCollabUtilsJournalPage();
-            } else if (!enabled && fewestDashesInProgressPageEnabled) {
+            } else if (!isEnabled && wasEnabled) {
                 Logger.Log("DashCountMod", "Unhooking journal progress page rendering methods");
 
                 IL.Celeste.OuiJournalProgress.ctor -= ModOuiJournalProgressColumnSizes;
@@ -133,7 +192,7 @@ namespace Celeste.Mod.DashCountMod {
                 collabUtilsLobbyJournalSizeHook = null;
             }
 
-            fewestDashesInProgressPageEnabled = enabled;
+            fewestDashesInProgressPage = newValue;
         }
 
         private static void hookCollabUtilsJournalPage() {
@@ -233,7 +292,26 @@ namespace Celeste.Mod.DashCountMod {
             table.AddColumn(new OuiJournalPage.IconCell("max480/DashCountMod/dashes", 80f));
         }
 
+        private int GetTotalDashesForJournalProgress(AreaStats stats) {
+            if (fewestDashesInProgressPage == DashCountOptions.Fewest) {
+                return stats.BestTotalDashes;
+            }
+
+            int count = 0;
+            if ((_SaveData as DashCountModSaveData).DashCountPerLevel.TryGetValue(stats.GetSID(), out Dictionary<AreaMode, int> result)) {
+                foreach (int value in result.Values) {
+                    count += value;
+                }
+            }
+            return count;
+        }
+
         private void AddColumnValueForFewestDashes(AreaStats areaStats, OuiJournalPage.Row row, OuiJournalProgress self) {
+            if (fewestDashesInProgressPage == DashCountOptions.Total) {
+                row.Add(new OuiJournalPage.TextCell(Dialog.Deaths(GetTotalDashesForJournalProgress(areaStats)), self.TextJustify, 0.5f, self.TextColor));
+                return;
+            }
+
             // we only show values for SingleRunCompleted sides. so, the total only appears for chapters with only SingleRunCompleted sides
             bool allSingleRunCompleted = true;
             int mode = 0;
@@ -244,13 +322,18 @@ namespace Celeste.Mod.DashCountMod {
             }
 
             if (allSingleRunCompleted) {
-                row.Add(new OuiJournalPage.TextCell(Dialog.Deaths(areaStats.BestTotalDashes), self.TextJustify, 0.5f, self.TextColor));
+                row.Add(new OuiJournalPage.TextCell(Dialog.Deaths(GetTotalDashesForJournalProgress(areaStats)), self.TextJustify, 0.5f, self.TextColor));
             } else {
                 row.Add(new OuiJournalPage.IconCell("dot"));
             }
         }
 
         private void AddColumnTotalForFewestDashes(OuiJournalPage.Row row, OuiJournalProgress self) {
+            if (fewestDashesInProgressPage == DashCountOptions.Total) {
+                row.Add(new OuiJournalPage.TextCell(Dialog.Deaths(SaveData.Instance.TotalDashes), self.TextJustify, 0.6f, self.TextColor));
+                return;
+            }
+
             // go across all areas that are not interludes, and check if they are all completed in a single run
             bool allSingleRunCompleted = true;
             int totalDashes = 0;
@@ -262,7 +345,7 @@ namespace Celeste.Mod.DashCountMod {
                             allSingleRunCompleted = false;
                         }
                     }
-                    if (allSingleRunCompleted) totalDashes += areaStats.BestTotalDashes;
+                    if (allSingleRunCompleted) totalDashes += GetTotalDashesForJournalProgress(areaStats);
                 }
             }
 
@@ -275,11 +358,15 @@ namespace Celeste.Mod.DashCountMod {
 
         // ================ Dash Count in Chapter Panel ================
 
-        bool dashCounterInChapterPanelEnabled = false;
+        DashCountOptions dashCounterInChapterPanel = DashCountOptions.None;
         private static Hook collabUtilsHook = null;
 
-        public void SetDashCounterInChapterPanelEnabled(bool enabled) {
-            if (enabled && !dashCounterInChapterPanelEnabled) {
+        public void SetDashCounterInChapterPanel(DashCountOptions newValue) {
+            bool wasEnabled = (dashCounterInChapterPanel != DashCountOptions.None);
+            bool isEnabled = (newValue != DashCountOptions.None);
+
+            // (un)hook methods
+            if (isEnabled && !wasEnabled) {
                 Logger.Log("DashCountMod", "Hooking chapter panel rendering methods");
 
                 using (new DetourContext() { After = { "*" } }) { // be sure to apply _after_ the collab utils.
@@ -291,7 +378,7 @@ namespace Celeste.Mod.DashCountMod {
                 }
 
                 hookCollabUtils();
-            } else if (!enabled && dashCounterInChapterPanelEnabled) {
+            } else if (!isEnabled && wasEnabled) {
                 Logger.Log("DashCountMod", "Unhooking chapter panel rendering methods");
 
                 IL.Celeste.OuiChapterPanel.Render -= ModOuiChapterPanelRender;
@@ -307,7 +394,7 @@ namespace Celeste.Mod.DashCountMod {
                 dashesCounter.Visible = false;
             }
 
-            dashCounterInChapterPanelEnabled = enabled;
+            dashCounterInChapterPanel = newValue;
         }
 
         private static void hookCollabUtils() {
@@ -363,11 +450,30 @@ namespace Celeste.Mod.DashCountMod {
             dashesCounter.Position = contentOffset + new Vector2(0f, 170f) + dashesOffset;
         }
 
+        private int GetDashCountForChapterPanel(AreaModeStats areaModeStats, AreaKey areaKey) {
+            if (dashCounterInChapterPanel == DashCountOptions.Fewest) {
+                return areaModeStats.BestDashes;
+            }
+
+            if ((_SaveData as DashCountModSaveData).DashCountPerLevel.TryGetValue(areaKey.GetSID(), out Dictionary<AreaMode, int> areaModes)) {
+                if (areaModes.TryGetValue(areaKey.Mode, out int totalDashes)) {
+                    return totalDashes;
+                }
+            }
+
+            return 0;
+        }
+
         private void ModOuiChapterPanelUpdateStats(On.Celeste.OuiChapterPanel.orig_UpdateStats orig, OuiChapterPanel self, bool wiggle, bool? overrideStrawberryWiggle, bool? overrideDeathWiggle, bool? overrideHeartWiggle) {
             orig(self, wiggle, overrideStrawberryWiggle, overrideDeathWiggle, overrideHeartWiggle);
 
             dashesCounter.Visible = self.DisplayedStats.Modes[(int) self.Area.Mode].SingleRunCompleted && !AreaData.Get(self.Area).Interlude;
-            dashesCounter.Amount = self.DisplayedStats.Modes[(int) self.Area.Mode].BestDashes;
+            dashesCounter.Amount = GetDashCountForChapterPanel(self.DisplayedStats.Modes[(int) self.Area.Mode], self.Area);
+
+            if (dashCounterInChapterPanel == DashCountOptions.Total && self.DisplayedStats != self.RealStats) {
+                // this is a sign that we are returning from a level, and we should display the old dash count so that it can animate to the new dash count.
+                dashesCounter.Amount = (_SaveData as DashCountModSaveData).OldDashCount;
+            }
 
             if (wiggle && dashesCounter.Visible && (overrideDeathWiggle ?? true)) {
                 dashesCounter.Wiggle();
@@ -445,18 +551,21 @@ namespace Celeste.Mod.DashCountMod {
             IEnumerator origMethod = orig(self, modeStats, newModeStats, doHeartGem, doStrawberries, doDeaths, doRemixUnlock);
             while (origMethod.MoveNext()) yield return origMethod.Current;
 
-            if (newModeStats.SingleRunCompleted && modeStats.BestDashes != newModeStats.BestDashes) {
+            int oldBestDashes = dashCounterInChapterPanel == DashCountOptions.Fewest ? modeStats.BestDashes : (_SaveData as DashCountModSaveData).OldDashCount;
+            int newBestDashes = GetDashCountForChapterPanel(newModeStats, self.Area);
+
+            if (newModeStats.SingleRunCompleted && oldBestDashes != newBestDashes) {
                 yield return 0.5f;
 
                 Audio.Play("event:/ui/postgame/death_appear");
                 dashesCounter.CanWiggle = true;
                 dashesCounter.Visible = true;
-                while (newModeStats.BestDashes != modeStats.BestDashes) {
+                while (newBestDashes != oldBestDashes) {
                     int jumpSize;
-                    yield return HandleDashTick(modeStats.BestDashes, newModeStats.BestDashes, out jumpSize);
-                    modeStats.BestDashes += Math.Sign(newModeStats.BestDashes - modeStats.BestDashes) * jumpSize;
-                    dashesCounter.Amount = modeStats.BestDashes;
-                    if (modeStats.BestDashes == newModeStats.BestDashes) {
+                    yield return HandleDashTick(oldBestDashes, newBestDashes, out jumpSize);
+                    oldBestDashes += Math.Sign(newBestDashes - oldBestDashes) * jumpSize;
+                    dashesCounter.Amount = oldBestDashes;
+                    if (oldBestDashes == newBestDashes) {
                         Audio.Play("event:/ui/postgame/death_final");
                     } else {
                         Audio.Play("event:/ui/postgame/death_count");
