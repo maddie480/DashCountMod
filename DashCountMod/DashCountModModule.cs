@@ -162,6 +162,25 @@ namespace Celeste.Mod.DashCountMod {
             return didRedirect;
         }
 
+        // ================ Do Not Reset Dash Count On Death ================
+
+        private bool dashCountOnDeathHooked = false;
+
+        public void SetDoNotResetDashCountOnDeath(bool doNotResetDashCountOnDeath) {
+            if (doNotResetDashCountOnDeath && !dashCountOnDeathHooked) {
+                On.Celeste.Player.CallDashEvents += onCallDashEvents;
+                dashCountOnDeathHooked = true;
+            } else if (!doNotResetDashCountOnDeath && dashCountOnDeathHooked) {
+                On.Celeste.Player.CallDashEvents -= onCallDashEvents;
+                dashCountOnDeathHooked = false;
+            }
+        }
+
+        private void onCallDashEvents(On.Celeste.Player.orig_CallDashEvents orig, Player self) {
+            orig(self);
+            (Engine.Scene as Level)?.Session.UpdateLevelStartDashes();
+        }
+
 
         // ================ Display Dash Count In Level ================
 

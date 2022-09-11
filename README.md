@@ -9,9 +9,10 @@ This mod adds **dash counters** to the game. You can configure whether to show t
     *   Chapter: your total dash count on that chapter
     *   File: your total dash count on the entire save file
     *   File + Chapter: your total dash count on the entire save file and on the chapter, in the format `File (Chapter)` (for example `12 (3)`)
+*   **Do not reset dash count on death**: when you die, the game usually resets your dash count to what it was when you entered the room, except in some circumstances (like grabbing strawberries). Enabling this option will prevent that reset from happening. This also affects the dashless golden in chapter 1!
 
 Please note that the vanilla game does not keep track of total dash counts per level. So, **the dashes you made without that mod installed will not be counted in the "dash count per level" counters**. Everything else (total dashes on the save file, and your "fewest dashes" records) _will_ be counted even if you play vanilla, though.
 
 This is because the game originally had a "fewest dashes" journal page, but it was removed and replaced with the winged golden strawberry. There are still remnants of it in the vanilla game: a "Best Dashes" counter on each level, a "dash count" icon, and a "Fewest Dashes" journal page title that was translated to all languages. This mod makes use of all of these, and keeps track of dash counts per level itself for completeness.
 
-Download it [here!](https://0x0a.de/twoclick?https://gamebanana.com/mmdl/784140)
+Download it [here!](https://0x0a.de/twoclick?https://gamebanana.com/mmdl/862675)
