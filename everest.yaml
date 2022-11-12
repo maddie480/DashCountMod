@@ -1,0 +1,9 @@
+﻿- Name: DashCountMod
+  Version: 0.4.5
+  DLL: bin/Release/net452/DashCountMod.dll
+  Dependencies:
+    - Name: Everest
+      Version: 1.3282.0
+  OptionalDependencies:
+    - Name: CollabUtils2
+      Version: 1.6.10
