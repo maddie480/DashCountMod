@@ -15,4 +15,4 @@ Please note that the vanilla game does not keep track of total dash counts per l
 
 This is because the game originally had a "fewest dashes" journal page, but it was removed and replaced with the winged golden strawberry. There are still remnants of it in the vanilla game: a "Best Dashes" counter on each level, a "dash count" icon, and a "Fewest Dashes" journal page title that was translated to all languages. This mod makes use of all of these, and keeps track of dash counts per level itself for completeness.
 
-Download it [here!](https://max480.ovh/celeste/dl?id=DashCountMod&mirror=1&twoclick=1)
+Download it [here!](https://max480.ovh/celeste/dl?id=DashCountMod&twoclick=1)
