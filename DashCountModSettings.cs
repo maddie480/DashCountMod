@@ -13,7 +13,7 @@
             get { return dashCountInChapterPanel; }
             set {
                 dashCountInChapterPanel = value;
-                DashCountModModule.Instance.SetDashCounterInChapterPanel(value);
+                Features.DashCountInChapterPanel.SetValue(value);
             }
         }
 
@@ -21,7 +21,7 @@
             get { return dashCountOnProgressPage; }
             set {
                 dashCountOnProgressPage = value;
-                DashCountModModule.Instance.SetFewestDashesInProgressPage(value);
+                Features.DashCountOnProgressPage.SetValue(value);
             }
         }
 
@@ -29,7 +29,7 @@
             get { return showDashCountInGame; }
             set {
                 showDashCountInGame = value;
-                DashCountModModule.Instance.SetShowDashCountInGame(value);
+                Features.DisplayDashCountInLevel.SetValue(value);
             }
         }
 
@@ -37,7 +37,7 @@
             get { return countDreamDashRedirectsAsDashes; }
             set {
                 countDreamDashRedirectsAsDashes = value;
-                DashCountModModule.Instance.SetCountDreamDashRedirectsAsDashes(value);
+                Features.CountDreamDashRedirectsAsDashes.SetEnabled(value);
             }
         }
 
@@ -45,7 +45,7 @@
             get { return doNotResetDashCountOnDeath; }
             set {
                 doNotResetDashCountOnDeath = value;
-                DashCountModModule.Instance.SetDoNotResetDashCountOnDeath(value);
+                Features.DoNotResetDashCountOnDeath.SetEnabled(value);
             }
         }
     }

@@ -6,7 +6,7 @@ using MonoMod.Utils;
 using System;
 using System.Collections.Generic;
 
-namespace Celeste.Mod.DashCountMod {
+namespace Celeste.Mod.DashCountMod.UI {
     class DashCountDisplayInLevel : Entity {
         private Session session;
         private DashCountModSettings.ShowDashCountInGameOptions format;

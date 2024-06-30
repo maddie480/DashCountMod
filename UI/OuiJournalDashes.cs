@@ -1,7 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
 using Monocle;
 
-namespace Celeste.Mod.DashCountMod {
+namespace Celeste.Mod.DashCountMod.UI {
     class OuiJournalDashes : OuiJournalPage {
         private readonly Table table;
 
