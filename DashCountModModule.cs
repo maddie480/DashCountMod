@@ -18,18 +18,18 @@ namespace Celeste.Mod.DashCountMod {
         public override void Load() {
             CustomDashCounting.Load();
             DashCountJournalPage.Load();
-            DashCountInChapterPanel.Load();
+            DashCountInChapterPanel.Instance.Load();
         }
 
         public override void Unload() {
             CustomDashCounting.Unload();
             DashCountJournalPage.Unload();
-            DashCountInChapterPanel.Unload();
+            DashCountInChapterPanel.Instance.Unload();
 
             // "disable" all options in order to unhook associated stuff
             CountDreamDashRedirectsAsDashes.SetEnabled(false);
-            DashCountInChapterPanel.SetValue(DashCountOptions.None);
-            DashCountOnProgressPage.SetValue(DashCountOptions.None);
+            DashCountInChapterPanel.Instance.SetValue(CountOptionsInChapterPanel.None);
+            DashCountOnProgressPage.SetValue(CountOptionsInChapterPanel.None);
             DisplayDashCountInLevel.SetValue(ShowCountInGameOptions.None);
             DoNotResetDashCountOnDeath.SetEnabled(false);
         }
@@ -39,7 +39,7 @@ namespace Celeste.Mod.DashCountMod {
 
             CountDreamDashRedirectsAsDashes.Initialize();
             DashCountOnProgressPage.Initialize();
-            DashCountInChapterPanel.Initialize();
+            DashCountInChapterPanel.Instance.Initialize();
         }
     }
 }

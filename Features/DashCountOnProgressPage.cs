@@ -9,12 +9,12 @@ using static Celeste.Mod.DashCountMod.DashCountModSettings;
 
 namespace Celeste.Mod.DashCountMod.Features {
     public static class DashCountOnProgressPage {
-        private static DashCountOptions fewestDashesInProgressPage = DashCountOptions.None;
+        private static CountOptionsInChapterPanel fewestDashesInProgressPage = CountOptionsInChapterPanel.None;
 
         public static void Initialize() {
             EverestModule collabUtils = Everest.Modules.FirstOrDefault(module => module.Metadata.Name == "CollabUtils2");
             if (collabUtils != null) {
-                if (((DashCountModSettings) DashCountModModule.Instance._Settings).DashCountOnProgressPage != DashCountOptions.None) {
+                if (((DashCountModSettings) DashCountModModule.Instance._Settings).DashCountOnProgressPage != CountOptionsInChapterPanel.None) {
                     hookCollabUtilsJournalPage();
                 }
             }
@@ -26,9 +26,9 @@ namespace Celeste.Mod.DashCountMod.Features {
         private static ILHook collabUtilsOverworldJournalSizeHook = null;
         private static ILHook collabUtilsLobbyJournalSizeHook = null;
 
-        public static void SetValue(DashCountOptions newValue) {
-            bool wasEnabled = (fewestDashesInProgressPage != DashCountOptions.None);
-            bool isEnabled = (newValue != DashCountOptions.None);
+        public static void SetValue(CountOptionsInChapterPanel newValue) {
+            bool wasEnabled = (fewestDashesInProgressPage != CountOptionsInChapterPanel.None);
+            bool isEnabled = (newValue != CountOptionsInChapterPanel.None);
 
             // (un)hook methods
             if (isEnabled && !wasEnabled) {
@@ -98,7 +98,7 @@ namespace Celeste.Mod.DashCountMod.Features {
         }
 
         private static bool displaysTotalDashesInCollabUtils(Func<bool> orig) {
-            return (fewestDashesInProgressPage == DashCountOptions.Total);
+            return (fewestDashesInProgressPage == CountOptionsInChapterPanel.Total);
         }
 
         private static int getLevelDashesInJournalProgressInCollabUtils(Func<AreaStats, int> orig, AreaStats stats) {
@@ -176,7 +176,7 @@ namespace Celeste.Mod.DashCountMod.Features {
         }
 
         private static int getTotalDashesForJournalProgress(AreaStats stats) {
-            if (fewestDashesInProgressPage == DashCountOptions.Fewest) {
+            if (fewestDashesInProgressPage == CountOptionsInChapterPanel.Fewest) {
                 return stats.BestTotalDashes;
             }
 
@@ -190,7 +190,7 @@ namespace Celeste.Mod.DashCountMod.Features {
         }
 
         private static void addColumnValueForFewestDashes(AreaStats areaStats, OuiJournalPage.Row row, OuiJournalProgress self) {
-            if (fewestDashesInProgressPage == DashCountOptions.Total && areaStats.TotalTimePlayed > 0) {
+            if (fewestDashesInProgressPage == CountOptionsInChapterPanel.Total && areaStats.TotalTimePlayed > 0) {
                 row.Add(new OuiJournalPage.TextCell(Dialog.Deaths(getTotalDashesForJournalProgress(areaStats)), self.TextJustify, 0.5f, self.TextColor));
                 return;
             }
@@ -212,7 +212,7 @@ namespace Celeste.Mod.DashCountMod.Features {
         }
 
         private static void addColumnTotalForFewestDashes(OuiJournalPage.Row row, OuiJournalProgress self) {
-            if (fewestDashesInProgressPage == DashCountOptions.Total) {
+            if (fewestDashesInProgressPage == CountOptionsInChapterPanel.Total) {
                 row.Add(new OuiJournalPage.TextCell(Dialog.Deaths(SaveData.Instance.TotalDashes), self.TextJustify, 0.6f, self.TextColor));
                 return;
             }
