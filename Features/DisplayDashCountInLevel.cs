@@ -4,11 +4,11 @@ using static Celeste.Mod.DashCountMod.DashCountModSettings;
 
 namespace Celeste.Mod.DashCountMod.Features {
     public static class DisplayDashCountInLevel {
-        private static ShowDashCountInGameOptions showDashCountInGame = ShowDashCountInGameOptions.None;
+        private static ShowCountInGameOptions showDashCountInGame = ShowCountInGameOptions.None;
 
-        public static void SetValue(ShowDashCountInGameOptions value) {
-            bool wasEnabled = (showDashCountInGame != ShowDashCountInGameOptions.None);
-            bool isEnabled = (value != ShowDashCountInGameOptions.None);
+        public static void SetValue(ShowCountInGameOptions value) {
+            bool wasEnabled = (showDashCountInGame != ShowCountInGameOptions.None);
+            bool isEnabled = (value != ShowCountInGameOptions.None);
 
             // (un)hook methods
             if (isEnabled && !wasEnabled) {
@@ -24,7 +24,7 @@ namespace Celeste.Mod.DashCountMod.Features {
             if (Engine.Scene is Level level) {
                 DashCountDisplayInLevel currentDisplay = level.Entities.FindFirst<DashCountDisplayInLevel>();
 
-                if (value == ShowDashCountInGameOptions.None) {
+                if (value == ShowCountInGameOptions.None) {
                     currentDisplay?.RemoveSelf();
                 } else if (currentDisplay != null) {
                     currentDisplay.SetFormat(value);

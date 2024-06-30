@@ -30,7 +30,7 @@ namespace Celeste.Mod.DashCountMod {
             CountDreamDashRedirectsAsDashes.SetEnabled(false);
             DashCountInChapterPanel.SetValue(DashCountOptions.None);
             DashCountOnProgressPage.SetValue(DashCountOptions.None);
-            DisplayDashCountInLevel.SetValue(ShowDashCountInGameOptions.None);
+            DisplayDashCountInLevel.SetValue(ShowCountInGameOptions.None);
             DoNotResetDashCountOnDeath.SetEnabled(false);
         }
 

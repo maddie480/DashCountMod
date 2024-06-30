@@ -1,11 +1,11 @@
 ﻿namespace Celeste.Mod.DashCountMod {
     public class DashCountModSettings : EverestModuleSettings {
         public enum DashCountOptions { None, Fewest, Total }
-        public enum ShowDashCountInGameOptions { None, Session, Chapter, File, Both }
+        public enum ShowCountInGameOptions { None, Session, Chapter, File, Both }
 
         private DashCountOptions dashCountInChapterPanel = DashCountOptions.None;
         private DashCountOptions dashCountOnProgressPage = DashCountOptions.None;
-        private ShowDashCountInGameOptions showDashCountInGame = ShowDashCountInGameOptions.None;
+        private ShowCountInGameOptions showDashCountInGame = ShowCountInGameOptions.None;
         private bool countDreamDashRedirectsAsDashes = false;
         private bool doNotResetDashCountOnDeath = false;
 
@@ -25,7 +25,7 @@
             }
         }
 
-        public ShowDashCountInGameOptions DashCountInGame {
+        public ShowCountInGameOptions DashCountInGame {
             get { return showDashCountInGame; }
             set {
                 showDashCountInGame = value;
