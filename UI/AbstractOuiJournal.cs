@@ -40,7 +40,7 @@ namespace Celeste.Mod.DashCountMod.UI {
                         if (areaData.HasMode((AreaMode) j)) {
                             if (areaStats.Modes[j].SingleRunCompleted) {
                                 // completed mode
-                                int best = GetBestCountFor(areaData, j);
+                                int best = GetBestCountFor(areaData.ToKey((AreaMode) j));
                                 row.Add(new TextCell(Dialog.Deaths(best), TextJustify, 0.5f, TextColor));
                                 modeTotals[j] += best;
                             } else {
@@ -70,20 +70,20 @@ namespace Celeste.Mod.DashCountMod.UI {
             // now, display the rows for "final" levels (Farewell in vanilla Celeste)
             int finalAreasTotal = 0;
             foreach (AreaStats areaStats in SaveData.Instance.Areas) {
-                AreaData areaData2 = AreaData.Get(areaStats.ID);
-                if (areaData2.IsFinal) {
-                    if (areaData2.ID > SaveData.Instance.UnlockedAreas) {
+                AreaData areaData = AreaData.Get(areaStats.ID);
+                if (areaData.IsFinal) {
+                    if (areaData.ID > SaveData.Instance.UnlockedAreas) {
                         // area was not reached yet: do not display a row for it
                         break;
                     }
 
                     // add a row for this area
                     Row row = table.AddRow();
-                    row.Add(new TextCell(Dialog.Clean(areaData2.Name), new Vector2(1f, 0.5f), 0.6f, TextColor));
+                    row.Add(new TextCell(Dialog.Clean(areaData.Name), new Vector2(1f, 0.5f), 0.6f, TextColor));
 
                     // and add the value for the A-side (other sides don't exist, so don't bother with them, that's what vanilla code does)
                     if (areaStats.Modes[0].SingleRunCompleted) {
-                        int best = GetBestCountFor(areaData2, 0);
+                        int best = GetBestCountFor(areaData.ToKey(AreaMode.Normal));
                         TextCell entry = new TextCell(Dialog.Deaths(best), TextJustify, 0.5f, TextColor);
                         row.Add(entry);
                         finalAreasTotal += best;
@@ -112,6 +112,6 @@ namespace Celeste.Mod.DashCountMod.UI {
             Draw.SpriteBatch.End();
         }
 
-        protected abstract int GetBestCountFor(AreaData areaData, int mode);
+        protected abstract int GetBestCountFor(AreaKey areaKey);
     }
 }

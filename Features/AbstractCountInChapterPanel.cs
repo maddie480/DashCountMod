@@ -86,7 +86,7 @@ namespace Celeste.Mod.DashCountMod.Features {
                 if (collabUtils != null) {
                     collabUtilsHook = new Hook(
                         collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.SpeedBerryPBInChapterPanel").GetMethod("approach", BindingFlags.NonPublic | BindingFlags.Static),
-                        typeof(DashCountInChapterPanel).GetMethod("modSpeedBerryPBApproach", BindingFlags.NonPublic | BindingFlags.Static));
+                        typeof(AbstractCountInChapterPanel<TCounter>).GetMethod("modSpeedBerryPBApproach", BindingFlags.NonPublic | BindingFlags.Instance), this);
 
                     Logger.Log("DashCountMod", "Collab utils speed berry PB counter was hooked");
                 }

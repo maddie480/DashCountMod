@@ -35,7 +35,7 @@ namespace Celeste.Mod.DashCountMod.Features {
                 if (pandorasBox != null) {
                     pandorasBoxHook = new Hook(
                         pandorasBox.GetType().Assembly.GetType("Celeste.Mod.PandorasBox.DreamDashController").GetMethod("dreamDashRedirect", BindingFlags.NonPublic | BindingFlags.Instance),
-                        typeof(DashCountModModule).GetMethod("countPandorasBoxDashes", BindingFlags.NonPublic | BindingFlags.Static));
+                        typeof(CountDreamDashRedirectsAsDashes).GetMethod("countPandorasBoxDashes", BindingFlags.NonPublic | BindingFlags.Static));
 
                     Logger.Log("DashCountMod", "Pandora's Box Dream Dash Controller hooked");
                 }
