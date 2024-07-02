@@ -9,7 +9,7 @@ namespace Celeste.Mod.DashCountMod.Features {
             return new DashesCounterInChapterPanel(true, 0);
         }
         protected override int GetFewestCount(AreaKey areaKey) {
-            return SaveData.Instance.GetAreaStatsFor(areaKey).Modes[(int) areaKey.Mode].BestDashes;
+            return SaveData.Instance.GetAreaStatsForIncludingCeleste(areaKey).Modes[(int) areaKey.Mode].BestDashes;
         }
         protected override int GetTotalCount(AreaKey areaKey) {
             return GetCountFromSaveData(((DashCountModSaveData) DashCountModModule.Instance._SaveData).DashCountPerLevel, areaKey);
