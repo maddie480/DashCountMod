@@ -15,8 +15,9 @@ namespace Celeste.Mod.DashCountMod.UI {
             }
         }
 
-        readonly protected Session session;
+        protected readonly Session session;
         protected ShowCountInGameOptions format;
+        private readonly float spriteExtraY;
 
         private Level level;
         private TotalStrawberriesDisplay berryCounter;
@@ -26,13 +27,12 @@ namespace Celeste.Mod.DashCountMod.UI {
         private readonly MTexture bg = GFX.Gui["DashCountMod/extendedStrawberryCountBG"];
         private readonly MTexture icon;
         private readonly MTexture x = GFX.Gui["x"];
-        private readonly List<AbstractCountDisplayInLevel> previousCountDisplays;
 
-        protected AbstractCountDisplayInLevel(Session session, ShowCountInGameOptions format, MTexture icon, List<AbstractCountDisplayInLevel> previousCountDisplays) {
+        protected AbstractCountDisplayInLevel(Session session, ShowCountInGameOptions format, MTexture icon, float spriteExtraY) {
             this.session = session;
             this.format = format;
             this.icon = icon;
-            this.previousCountDisplays = previousCountDisplays;
+            this.spriteExtraY = spriteExtraY;
 
             Tag = (Tags.HUD | Tags.Global | Tags.PauseUpdate | Tags.TransitionUpdate);
             Position = new Vector2(0, -1000);
@@ -74,6 +74,11 @@ namespace Celeste.Mod.DashCountMod.UI {
                 y += getSpeedBerryOffset();
             }
 
+            IEnumerator<AbstractCountDisplayInLevel> enumerator = EnumeratePreviousCountDisplays();
+            while (enumerator.MoveNext()) {
+                y += 78f;
+            }
+
             Y = y;
         }
 
@@ -103,7 +108,7 @@ namespace Celeste.Mod.DashCountMod.UI {
             float dashCountSize = ActiveFont.Measure(count).X;
             bg.Draw(Position + new Vector2(-402 + dashCountSize, 0));
 
-            icon.Draw(Position + new Vector2(9, -36));
+            icon.Draw(Position + new Vector2(9, -36 + spriteExtraY));
             x.Draw(Position + new Vector2(94, -14));
             ActiveFont.DrawOutline(count, Position + new Vector2(144, -26), Vector2.Zero, Vector2.One, Color.White, 2f, Color.Black);
         }
@@ -132,8 +137,12 @@ namespace Celeste.Mod.DashCountMod.UI {
         }
 
         protected abstract int GetCountForSession();
+
         protected abstract int GetCountForChapter();
+
         protected abstract int GetCountForFile();
+
+        protected abstract IEnumerator<AbstractCountDisplayInLevel> EnumeratePreviousCountDisplays();
     }
 
 }

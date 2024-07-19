@@ -1,4 +1,5 @@
 using Celeste.Mod.DashCountMod.UI;
+using System.Linq;
 using static Celeste.Mod.DashCountMod.DashCountModSettings;
 
 namespace Celeste.Mod.DashCountMod.Features {
@@ -21,7 +22,11 @@ namespace Celeste.Mod.DashCountMod.Features {
             return ((DashCountModSettings) DashCountModModule.Instance._Settings).DashCountInChapterPanel;
         }
         protected override int GetExtraOffset() {
-            return 0;
+            if (Scene?.Tracker.GetComponents<JumpsCounterInChapterPanel>().Any(counter => counter.Visible) ?? false) {
+                return -20;
+            } else {
+                return 0;
+            }
         }
     }
 }

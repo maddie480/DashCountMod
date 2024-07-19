@@ -17,6 +17,8 @@ namespace Celeste.Mod.DashCountMod.Features {
         private CountOptionsInChapterPanel counterInChapterPanel = CountOptionsInChapterPanel.None;
         private Hook collabUtilsHook = null;
 
+        protected Scene Scene => counter.Scene;
+
         public void Load() {
             On.Celeste.OuiChapterPanel.ctor += modOuiChapterPanelConstructor;
         }
@@ -94,8 +96,8 @@ namespace Celeste.Mod.DashCountMod.Features {
         }
 
         private Vector2 modSpeedBerryPBApproach(Func<Vector2, Vector2, bool, Vector2> orig, Vector2 from, Vector2 to, bool snap) {
-            if ((counter?.Visible ?? false) && counterOffset.Y < 160f) {
-                to.Y -= 40f;
+            if (counter?.Visible ?? false) {
+                to.Y -= 20f;
             }
 
             return orig(from, to, snap);
@@ -201,16 +203,15 @@ namespace Celeste.Mod.DashCountMod.Features {
         }
 
         private float shiftCountersPosition(float position) {
-            return counter.Visible && counterOffset.Y < 160f ? position - 40 : position;
+            return counter.Visible ? position - 20 : position;
         }
 
         private void updateCounterOffset(bool doApproach, StrawberriesCounter strawberries, DeathsCounter deaths, bool hasHeart) {
-            int shift = 0;
+            int shift = 20;
             if (strawberries.Visible) shift += 40;
             if (deaths.Visible) shift += 40;
             if (speedBerryPBInChapterPanel != null && speedBerryPBInChapterPanel.GetValue(null) is Component component && component.Visible) shift += 40;
             shift += GetExtraOffset();
-            if (shift >= 120f) shift += 40;
             counterOffset = approach(counterOffset, new Vector2(hasHeart ? 120f : 0f, shift), !doApproach);
         }
 
@@ -254,11 +255,7 @@ namespace Celeste.Mod.DashCountMod.Features {
         }
 
         private int modOuiChapterPanelGetModeHeight(On.Celeste.OuiChapterPanel.orig_GetModeHeight orig, OuiChapterPanel self) {
-            int origModeHeight = orig(self);
-            if (origModeHeight == 540 && counterOffset.Y >= 160f) {
-                return 610;
-            }
-            return origModeHeight;
+            return orig(self) + (counter.Visible ? 40 : 0);
         }
 
         // nearly another vanilla method copypaste

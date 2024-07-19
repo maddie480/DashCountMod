@@ -6,6 +6,8 @@
         private CountOptionsInChapterPanel dashCountInChapterPanel = CountOptionsInChapterPanel.None;
         private CountOptionsInChapterPanel dashCountOnProgressPage = CountOptionsInChapterPanel.None;
         private ShowCountInGameOptions showDashCountInGame = ShowCountInGameOptions.None;
+        private CountOptionsInChapterPanel jumpCountInChapterPanel = CountOptionsInChapterPanel.None;
+        private ShowCountInGameOptions showJumpCountInGame = ShowCountInGameOptions.None;
         private bool countDreamDashRedirectsAsDashes = false;
         private bool doNotResetDashCountOnDeath = false;
 
@@ -14,6 +16,14 @@
             set {
                 dashCountInChapterPanel = value;
                 Features.DashCountInChapterPanel.Instance.SetValue(value);
+            }
+        }
+
+        public CountOptionsInChapterPanel JumpCountInChapterPanel {
+            get { return jumpCountInChapterPanel; }
+            set {
+                jumpCountInChapterPanel = value;
+                Features.JumpCountInChapterPanel.Instance.SetValue(value);
             }
         }
 
@@ -33,6 +43,14 @@
             }
         }
 
+        public ShowCountInGameOptions JumpCountInGame {
+            get { return showJumpCountInGame; }
+            set {
+                showJumpCountInGame = value;
+                Features.DisplayJumpCountInLevel.SetValue(value);
+            }
+        }
+
         public bool CountDreamDashRedirectsAsDashes {
             get { return countDreamDashRedirectsAsDashes; }
             set {
@@ -48,5 +66,7 @@
                 Features.DoNotResetDashCountOnDeath.SetEnabled(value);
             }
         }
+
+        public bool DoNotResetJumpCountOnDeath { get; set; } = false;
     }
 }

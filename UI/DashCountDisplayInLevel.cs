@@ -1,9 +1,11 @@
-﻿using System.Collections.Generic;
+﻿using Monocle;
+using System.Collections.Generic;
 
 namespace Celeste.Mod.DashCountMod.UI {
+    [Tracked]
     public class DashCountDisplayInLevel : AbstractCountDisplayInLevel {
         public DashCountDisplayInLevel(Session session, DashCountModSettings.ShowCountInGameOptions format)
-            : base(session, format, GFX.Gui["collectables/dashes"], new List<AbstractCountDisplayInLevel>()) {
+            : base(session, format, GFX.Gui["collectables/dashes"], 0f) {
         }
 
         protected override int GetCountForSession() {
@@ -15,6 +17,10 @@ namespace Celeste.Mod.DashCountMod.UI {
         }
         protected override int GetCountForFile() {
             return SaveData.Instance.TotalDashes;
+        }
+
+        protected override IEnumerator<AbstractCountDisplayInLevel> EnumeratePreviousCountDisplays() {
+            yield break;
         }
     }
 }
