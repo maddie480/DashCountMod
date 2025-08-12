@@ -30,7 +30,7 @@ jobs:
       run: dotnet restore
 
     - name: Build using .NET Core
-      run: DotNet build --configuration Release --no-restore *.sln
+      run: dotnet build --configuration Release --no-restore *.sln
 
     - name: Publish release
       if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/gh-actions'
