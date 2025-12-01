@@ -69,15 +69,15 @@ namespace Celeste.Mod.DashCountMod.Features {
 
                 if (collabUtils != null) {
                     collabUtilsJournalsHook = new Hook(
-                        collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.OuiJournalCollabProgressDashCountMod").GetMethod("IsDashCountEnabled", BindingFlags.NonPublic | BindingFlags.Static),
+                        collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.OuiJournalCollabProgressDashCountMod").GetMethod("IsDashCountEnabled"),
                         typeof(DashCountOnProgressPage).GetMethod("enableDashCountModInCollabUtils", BindingFlags.NonPublic | BindingFlags.Static));
 
                     collabUtilsJournalsTotalDashesHook = new Hook(
-                        collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.OuiJournalCollabProgressDashCountMod").GetMethod("DisplaysTotalDashes", BindingFlags.NonPublic | BindingFlags.Static),
+                        collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.OuiJournalCollabProgressDashCountMod").GetMethod("DisplaysTotalDashes"),
                         typeof(DashCountOnProgressPage).GetMethod("displaysTotalDashesInCollabUtils", BindingFlags.NonPublic | BindingFlags.Static));
 
                     collabUtilsJournalsLevelDashesHook = new Hook(
-                        collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.OuiJournalCollabProgressDashCountMod").GetMethod("GetLevelDashesForJournalProgress", BindingFlags.NonPublic | BindingFlags.Static),
+                        collabUtils.GetType().Assembly.GetType("Celeste.Mod.CollabUtils2.UI.OuiJournalCollabProgressDashCountMod").GetMethod("GetLevelDashesForJournalProgress"),
                         typeof(DashCountOnProgressPage).GetMethod("getLevelDashesInJournalProgressInCollabUtils", BindingFlags.NonPublic | BindingFlags.Static));
 
                     collabUtilsOverworldJournalSizeHook = new ILHook(
